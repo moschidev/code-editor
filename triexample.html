@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <style>
+            html, body {
+                background-color:#000000;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                color:white;
+                font-family:monospace;
+                font-size:20px;
+            }
+            #container {
+                height: 75%;
+                width: 100%;
+                left: 0;
+            }
+            #console {
+                position:absolute;
+                height: 25%;
+                right: 0;
+                left: 20px;
+                margin-left: 3px;
+                word-break: break-all;
+                overflow-y: scroll;
+                background-color:black;
+                color:lime;
+                font-family:monospace;
+                font-size:14px;
+                resize:none;
+            }
+            #JSconsole {
+                display:none;
+                position:absolute;
+                height: 25%;
+                right: 0;
+                left: 20px;
+                margin-left: 3px;
+                word-break: break-all;
+                overflow-y: scroll;
+                background-color:black;
+                color:lime;
+                font-family:monospace;
+                font-size:14px;
+                resize:none;
+            }
+            #download {
+                border: solid #666 1px;
+                border-radius: 5px;
+                height: 30px;
+                width: 30px;
+                background-color:#000000;
+                color:#FFFFFF;
+            }
+            #download:active {
+                border: solid #fff 1px;
+                border-radius: 5px;
+                height: 30px;
+                width: 30px;
+                background-color:#000000;
+                color:#FFFFFF;
+            }
+            #filename {
+                position:absolute;
+                height: 26px;
+                width: calc(100% - 40px);
+                padding:0;
+                margin:0;
+                background-color:#000000;
+                color:#FFFFFF;
+            }
+            .error {
+                color:#FF0000;
+            }
+            #memory {
+                display:none;
+            }
+            #dld {
+                display:none;
+            }
+            
+            #terminalButton {
+                position:absolute;
+                border: solid #111 1px;
+                height: 12.5%;
+                width: 20px;
+                top: calc(75% - 1px);
+                left: 0;
+                background-color:#000000;
+                color:#333;
+            }
+            #terminalButton:hover {
+                border: solid #444 1px;
+                color:#888;
+            }
+            #terminalButton:active {
+                border: solid #fff 1px;
+                color:#fff;
+            }
+            #consoleButton {
+                position:absolute;
+                border: solid #111 1px;
+                top: calc(88.5% - 6px);
+                height: 12.5%;
+                left: 0;
+                width: 20px;
+                background-color:#000000;
+                color:#333;
+            }
+            #consoleButton:hover {
+                border: solid #444 1px;
+                color:#888;
+            }
+            #consoleButton:active {
+                border: solid #fff 1px;
+                color:#fff;
+            }
+            #iFrame {
+                position:absolute;
+                width:calc(100% - 2px);
+                height:calc(100% - 2px);
+                left:100%;
+                top:0;
+                border: solid #666 1px;
+            }
+        </style>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <script>
+            const body = document.getElementById("body");
+            window.onerror = function(message, source, lineno, colno, error){body.innerHTML = message};
+        </script>
+        
+        <script>
+            window.MonacoEnviroment = {
+                getWorkerUrl: function (workerId, label) {
+                    return './monaco/min/vs/base/worker/workerMain.js';
+                }
+            }
+        </script>
+    </head>
+
+    <body id="body">
+        <div id="dld">
+            <button id="download">⬇</button>
+            <input type="text" id="filename">
+        </div>
+        <script src="./monaco/min/vs/loader.js"></script>
+
+        <textarea id="memory"></textarea>
+        
+        <div id="container"></div>
+        <button id="terminalButton">t</button>
+        <button id="consoleButton">c</button>
+        <div id="console"></div>
+        <div id="JSconsole"></div>
+        <iframe id="iFrame"></iframe>
+        <script>
+            const container = document.getElementById('container');
+            const memory = document.getElementById('memory');
+            const dld = document.getElementById('dld');
+            
+            
+            let root = {
+                name:"~",
+                type:"folder",
+                contents:[
+                    {
+                        name:"main.js",
+                        type:"file",
+                        contents:"console.log(\"hello world\");"
+                    }
+                ]
+            };
+            
+            let directory = root;
+            let dirTrace = [root];//,root.contents[3]
+            
+            let loaded = false;
+            
+            let scrollLocked = true;
+    
+            const console = document.getElementById("console");
+            
+            const JSconsole = document.getElementById("JSconsole");
+            
+            const terminalButton = document.getElementById("terminalButton");
+            const consoleButton = document.getElementById("consoleButton");
+            
+            const iFrame = document.getElementById("iFrame");
+            
+            let pref = "user@system"
+            let history = [];
+            let commandNum = 1;
+            let command = "";
+            let commandNumCurrent = 1;
+            let scrollException = false;
+            let prefC = pref+"&nbsp;"+directory.name+"&nbsp;:&nbsp;";
+            
+            let currentCommand = "";
+            let innerHTML = prefC;
+            let commandSelection = 0;
+            
+            let commandDivCurrent = document.createElement("div");
+            console.appendChild(commandDivCurrent);
+            
+            let JSDivCurrent = document.createElement("div");
+            JSconsole.appendChild(JSDivCurrent);
+            
+            commandDivCurrent.innerHTML = innerHTML + currentCommand;
+            
+            let editor;
+            let editorDir = "";
+            let editorTrace = "";
+            
+            let lang = "default";
+            
+            require.config({ paths: { 'vs': './monaco/min/vs' } });
+            
+            require(['vs/editor/editor.main'], function () {
+                editor = monaco.editor.create(container, {
+                    value: `
+<!DOCTYPE html>
+<html>
+    <body>
+        <canvas id="glCanvas" width="300" height="300"></canvas>
+        <script type="module">
+            const canvas = document.getElementById('glCanvas');
+            const gl = canvas.getContext('webgl2');
+
+            const vsSource = \`#version 300 es
+            in vec4 a_position;
+            out vec4 position;
+            void main() {
+                gl_Position = a_position;
+                position = a_position;
+            }
+            \`;
+
+            const fsSource = \`#version 300 es
+            precision highp float;
+            out vec4 outColor;
+            in vec4 position;
+            void main() {
+                outColor = vec4(position.xyz+vec3(0.5), 1.0);
+            }
+            \`;
+
+            function createShader(gl, type, source) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                return shader;
+            }
+
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            gl.useProgram(program);
+
+            const vertices = new Float32Array([
+                0.0,  0.5,
+                -0.5, -0.5,
+                0.5, -0.5
+            ]);
+
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+            const positionLoc = gl.getAttribLocation(program, 'a_position');
+            gl.enableVertexAttribArray(positionLoc);
+            gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        \</script\>
+    \</body\>
+\</html\>`,
+                    language: 'htmljs',
+                    theme: 'vs-dark',
+                    automaticLayout: true
+                });
+                
+                monaco.languages.html.htmlDefaults.setOptions({
+                    format: {
+                        enable: true,
+                        wrapLineLength: 120
+                    },
+                    suggest: {
+                        html5: true
+                    }
+                });
+                monaco.languages.registerDocumentHighlightProvider('html', {
+                    provideDocumentHighlights: (model, position, token) => {
+                        return monaco.languages.html.htmlDefaults
+                            .languageFeatures.documentHighlightProvider
+                            .provideDocumentHighlights(model, position, token);
+                    }
+                });
+
+                editor.onDidChangeModelContent(() => {
+                    if(lang === "default"){
+                        const content = editor.getValue();
+                        const position = editor.getPosition();
+                        if (content.slice(0, position.column).includes('<style') && 
+                            content.slice(position.column).includes('</style>')) {
+                            monaco.editor.setModelLanguage(editor.getModel(), 'css');
+                        }
+                        else if (content.slice(0, position.column).includes('<script') && 
+                                 content.slice(position.column).includes('\</script\>')) {
+                            monaco.editor.setModelLanguage(editor.getModel(), 'javascript');
+                        }
+                        else {
+                            monaco.editor.setModelLanguage(editor.getModel(), 'html');
+                        }
+                    }else{
+                        monaco.editor.setModelLanguage(editor.getModel(), lang);
+                    }
+                });
+                
+                if(lang === "default"){
+                    const content = editor.getValue();
+                    const position = editor.getPosition();
+                    if (content.slice(0, position.column).includes('<style') && 
+                        content.slice(position.column).includes('</style>')) {
+                        monaco.editor.setModelLanguage(editor.getModel(), 'css');
+                    }
+                    else if (content.slice(0, position.column).includes('<script') && 
+                                content.slice(position.column).includes('\</script\>')) {
+                        monaco.editor.setModelLanguage(editor.getModel(), 'javascript');
+                    }
+                    else {
+                        monaco.editor.setModelLanguage(editor.getModel(), 'html');
+                    }
+                }else{
+                    monaco.editor.setModelLanguage(editor.getModel(), lang);
+                }
+                
+            });
+            
+            function findPath(goTo,tempDir,tempTrace,verbose){
+                var found = false;
+                
+                if(goTo[0] === ".."){
+                    if(tempTrace.length>1){
+                        goTo.shift();
+                        tempTrace.pop();
+                        tempDir = tempTrace[tempTrace.length-1];
+                        if(verbose)print("GO BACK\n");
+                        var find = findPath(goTo,tempDir,tempTrace,verbose);
+                        found = find[0];
+                        tempDir = find[1];
+                        tempTrace = find[2];
+                        if(goTo.length <= 0)found = true;
+                    }
+                }else tempDir.contents.every((file) => {
+                    if(verbose)print("trying " + goTo[0] + " and " + file.name);
+                    if(file.name === goTo[0]){
+                        tempDir = file;
+                        tempTrace.push(file);
+                        if(goTo[1]){
+                            goTo.shift();
+                            if(verbose)print("...  FOUND: try "+goTo[0]+"\n");
+                            var find = findPath(goTo,tempDir,tempTrace,verbose);
+                            found = find[0];
+                            tempDir = find[1];
+                            tempTrace = find[2];
+                            return false;
+                        }else{
+                            if(verbose)print("...  DONE");
+                            found = true;
+                            return false;
+                        }
+                    }else if(verbose)print("...\n");
+                    return true;
+                });
+                return [found,tempDir,tempTrace];
+            }
+            let useConsole = true;
+            let targetConsole = false;
+            let lastError = false;
+            
+            let currentHistory = 0;
+
+            terminalButton.addEventListener("click", (event) => {
+                JSconsole.style.display = "none";
+                targetConsole = false;
+            });
+            consoleButton.addEventListener("click", (event) => {
+                useConsole = false;
+                JSconsole.style.display = "block";
+                targetConsole = true;
+            });
+            
+            document.addEventListener("click", (event) => {
+                useConsole = false;
+            });
+            console.addEventListener("click", (event) => {
+                useConsole = true;
+                event.stopPropagation();
+            });
+            
+            JSconsole.addEventListener("click", (event) => {
+                targetConsole = true;
+                try {
+                    if(lastError)console.clear();
+                    eval(editor.getValue());
+                    lastError = false;
+                }catch(e){
+                    console.clear();
+                    print("<span class='error'>error:</span> "+e.message+"\n");
+                    lastError = true;
+                    
+                    if(e.message === "Unexpected token '<'"){
+                        console.log("hey bud.. if you want html you might want to scroll to the right --->");
+                    }
+                }
+            });
+            
+            
+            document.addEventListener("keydown", (event) => {
+                
+                editorDir.contents = editor.getValue();
+                
+                iFrame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(editor.getValue());
+                
+                
+                
+                if(event.altKey && event.key === "a"){
+                    container.style.height = "100%";
+                    console.style.height = "0%";
+                    container.style.display = "block";
+                    
+                }else if(event.altKey && event.key === "v"){
+                    container.style.height = "0%";
+                    container.style.display = "none";
+                    console.style.height = "100%";
+                        
+                }else if(event.altKey && event.key === "s"){
+                    container.style.height = "75%";
+                    console.style.height = "25%";
+                    container.style.display = "block";
+                    
+                }else if(event.altKey && event.key === "z"){
+                    dld.style.display = "none";
+                }else if(event.altKey && event.key === "x"){
+                    dld.style.display = "block"
+                }else if(useConsole){
+                    if(event.key === "Escape"){
+                        useConsole = false;
+                    }else if(event.key === "ArrowUp"){
+                        if(currentHistory > 0)currentHistory--;
+                        currentCommand = history[currentHistory];
+
+                        //}
+                        event.preventDefault();
+                    }else if(event.key === "ArrowDown"){
+                        if(currentHistory < history.length)currentHistory++;
+                        currentCommand = currentHistory===history.length?"":history[currentHistory];
+
+                        //}
+                        event.preventDefault();
+                    }else if(event.key === "ArrowLeft"){
+                        if(commandDivCurrent.selectionStart+1<=commandNum*(prefC.length+1)){
+                            event.preventDefault();
+                        }
+                    }else if(event.key === "ArrowRight"){
+                        
+                    }else if(event.key === "Tab"){
+                    }else if(event.key === "Meta"){
+                    }else if(event.key === "Backspace"){
+                        if(currentCommand.slice(currentCommand.length-4,currentCommand.length) == "&gt;" ||
+                           currentCommand.slice(currentCommand.length-4,currentCommand.length) == "&lt;")
+                             currentCommand = currentCommand.slice(0,currentCommand.length-4);
+                        else currentCommand = currentCommand.slice(0,currentCommand.length-1);
+                    }else if(event.key === "Enter"){
+                        event.preventDefault();
+                        commandDivCurrent.selectionStart = commandDivCurrent.innerText.length;
+                        commandDivCurrent.selectionEnd = commandDivCurrent.innerText.length;
+                        command = currentCommand;
+                        history.push(command);
+                        commands = command.split(" ");
+                        
+for(var i = 0; i < dirTrace.length; i++){
+    //print(dirTrace[i].name+(i!==dirTrace.length-1?"/":""));
+}
+                
+                        print("\n");
+                        if(commands[0].slice(0,2) === "./"){
+                            var tempTrace = dirTrace;
+                            var tempDir = directory;
+                            
+                            var verbose = false;
+                            
+                            if(commands[1] === "-v"){
+                                verbose = true;
+                            }
+                                    
+                            var goTo = commands[0].slice(2).split("/");
+                            
+                            var find = findPath(goTo,tempDir,tempTrace,verbose)
+                            
+                            var found = find[0];
+                            tempDir = find[1];
+                            tempTrace = find[2];
+                            
+                            if(!found){
+                                print("<span class='error'>error:</span> "+goTo[0]+" not found");
+                            }else{
+                                print("\n")
+                                try {
+                                    eval(tempDir.contents);
+                                }catch(e){
+                                    console.log(e);
+                                }
+                            }
+                            
+                            prefC = pref+"&nbsp;"+directory.name+"&nbsp;:&nbsp;";
+                        }else switch(commands[0]){
+                            
+                            case 'ls':
+                                if(commands.length < 2){
+                                    print("\n")
+                                    directory.contents.forEach((file) => {
+                                        if(file.type==="folder")print("<strong>/"+file.name+"</strong>    ")
+                                    });
+                                    directory.contents.forEach((file) => {
+                                        if(file.type==="file")print(file.name+"    ")
+                                    });
+                                    print("\n")
+                                }else{
+                                    
+                                    var tempTrace = dirTrace;
+                                    var tempDir = directory;
+                                    
+                                    var verbose = false;
+                                    
+                                    if(commands[1] === "-v"){//for debugging
+                                        commands.shift();//oh my god is this a bash reference
+                                        verbose = true;
+                                    }
+                                    
+                                    var goTo = commands[1].split("/");
+                                    
+                                    var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                    
+                                    var found = find[0];
+                                    tempDir = find[1];
+                                    tempTrace = find[2];
+                                    
+                                    if(!found){
+                                        print("<span class='error'>error:</span> "+goTo[0]+" not found");
+                                    }else{
+                                        print("\n")
+                                        tempDir.contents.forEach((file) => {
+                                            if(file.type==="folder")print("<strong>/"+file.name+"</strong>    ")
+                                        });
+                                        tempDir.contents.forEach((file) => {
+                                            if(file.type==="file")print(file.name+"    ")
+                                        });
+                                        print("\n")
+                                    }
+                                }
+                            break;
+                            
+                            case 'cd':
+                                var found = false;
+                                if(commands.length < 2){
+                                    directory = root;
+                                    dirTrace = [root];
+                                    found = true;
+                                }else{
+                                    var verbose = false;
+                                    
+                                    var tempDir = directory
+                                    var tempTrace = dirTrace
+                                    
+                                    if(commands[1] === "-v"){
+                                        commands.shift();
+                                        verbose = true;
+                                    }
+                                    
+                                    var goTo = commands[1].split("/");
+                                    
+                                    var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                    
+                                    var found = find[0];
+                                    tempDir = find[1];
+                                    tempTrace = find[2];
+                                    
+                                    if(tempDir.type === "folder"){
+                                        directory = tempDir;
+                                        dirTrace = tempTrace;
+                                    }else{
+                                        print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                                    }
+                                }
+                                if(!found)print("<span class='error'>error:</span> "+commands[1] + " not found ")
+                                prefC = pref+"&nbsp;"+directory.name+"&nbsp;:&nbsp;";
+                            break;
+                            case 'rm':
+                                var found = false;
+                                var recursive = false;
+                                
+                                if(commands[1] === "-r"){
+                                    commands.shift();
+                                    recursive = true;
+                                }
+                                
+                                directory.contents.forEach((file) => {
+                                    if(file.name === commands[1]){
+                                        found = true;
+                                        if(file.type === "file"){
+                                            const index = directory.contents.indexOf(file);
+                                            if (index > -1) {
+                                                directory.contents.splice(index, 1);
+                                            }
+                                        }else if(file.type === "folder" && recursive){
+                                            const index = directory.contents.indexOf(file);
+                                            if (index > -1) {
+                                                directory.contents.splice(index, 1);
+                                            }
+                                        }else{
+                                            print(file.name + " is a " + file.type)
+                                        }
+                                    }
+                                });
+                                if(!found)print("<span class='error'>error:</span> "+commands[1] + " not found ")
+                            break;
+                            case 'echo':
+                                commands.shift();
+                                
+                                var loc = "";
+                                
+                                if(commands[commands.length-2] === ">>"||
+                                   commands[commands.length-2] === ">")loc = commands[commands.length-1];
+                                
+                                if(commands[0]){
+                                    len = loc===""?commands.length:commands.length-2;
+                                    
+                                    var toPrint = "";
+                                    
+                                    for(var i = 0; i < len; i++){
+                                        toPrint += commands[i];
+                                        if(i != len-1)toPrint += " ";
+                                    }
+                                    print(toPrint,loc,commands[len] === ">>",false);
+                                }
+                            break
+                            case 'mkdir':
+                                var found = false;
+                                var verbose = false;
+                                
+                                var tempDir = directory
+                                var tempTrace = dirTrace
+                                
+                                var makeAt = commands[1].split("/")
+                                var goTo = makeAt.slice(0,-1);
+                                
+                                var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                
+                                var found = find[0];
+                                tempDir = find[1];
+                                tempTrace = find[2];
+                                var newFolder = {
+                                    name:makeAt[makeAt.length>1?makeAt.length-1:0],
+                                    type:"folder",
+                                    contents:[]
+                                }
+                                tempDir.contents.push(newFolder);
+                            break;
+                            case 'clear':
+                                while (console.firstChild) {
+                                    console.removeChild(console.lastChild);
+                                }
+                            break;
+                            
+                            case 'cat'://most helpful one but also the one i never use
+                            
+                                //cat main.cpp 
+                                //cat > main.py (create)
+                                //cat main.cpp > main.py (copy/redirect output (works on everything not just cat))
+                                
+                                if(commands[1] === "-v"){
+                                    commands.shift();
+                                    verbose = true;
+                                }
+                                //for later .replace(/&gt;/g, ">").replace(/&lt;/g, "<")
+                                
+                                if(commands[1] === ">"){
+                                    var found = false;
+                                    var verbose = false;
+                                    
+                                    var tempDir = directory
+                                    var tempTrace = dirTrace
+                                    
+                                    var makeAt = commands[2].split("/")
+                                    var goTo = makeAt.slice(0,-1);
+                                    if(makeAt.length>1){
+                                        var find = findPath(goTo,tempDir,tempTrace,true)
+                                        
+                                        var found = find[0];
+                                        tempDir = find[1];
+                                        tempTrace = find[2];
+                                    }else found = true;
+                                    
+                                    if(found){
+                                        if(tempDir.type === "folder"){
+                                            
+                                            var newFile = {
+                                                name:makeAt[makeAt.length>1?makeAt.length-1:0],
+                                                type:"file",
+                                                contents:""
+                                            }
+                                            
+                                            tempDir.contents.push(newFile);
+                                        }else{
+                                            print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                                        }
+                                    }else print("<span class='error'>error:</span> "+commands[1] + " not found")
+                                }else{
+                                    var found = false;
+                                    var verbose = false;
+                                    
+                                    var tempDir = directory
+                                    var tempTrace = dirTrace
+                                                      
+                                    var goTo = commands[1].split("/");
+                                    
+                                    var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                    
+                                    var found = find[0];
+                                    tempDir = find[1];
+                                    tempTrace = find[2];
+                                    
+                                    if(found){
+                                        if(tempDir.type === "file"){
+                                            if(tempDir.contents)print(tempDir.contents);
+                                        }else{
+                                            print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                                        }
+                                    }else print("<span class='error'>error:</span> "+commands[1] + " not found")
+                                }
+                            currentCommand = "";
+                            break;
+                            
+                            case 'print'://for debugging
+                                if(commands[1] === "history")
+                                for(var i = 0; i < history.length; i++){
+                                    print(history[i]);
+                                    print(",");
+                                }
+                                if(commands[1] === "to")
+                                    if(commands[3])
+                                        print(commands[3],commands[2],true);
+                                    else
+                                        print("print",commands[2],true);
+                                    
+                                if(commands[1] === "command")
+                                for(var i = 0; i < commands.length; i++){
+                                    print(commands[i]);
+                                    print(",");
+                                }
+                                
+                                if(commands[1] === "editor"){
+                                var edito = editor.getValue().split("\n");
+                                    for(var i = 0; i < edito.length; i++)print(edito[i]);
+                                }
+                            break;
+                            
+                            //#region editor specific
+                            
+                            
+                            case 'syntax':
+                                if(commands.length === 2){
+                                    lang = commands[1];
+                                    if(lang === "js")lang = "javascript";
+                                    if(lang !== "default")monaco.editor.setModelLanguage(editor.getModel(), lang);
+                                    else{
+                                        if(lang === "default"){
+                                            const content = editor.getValue();
+                                            const position = editor.getPosition();
+                                            if (content.slice(0, position.column).includes('<style') && 
+                                                content.slice(position.column).includes('</style>')) {
+                                                monaco.editor.setModelLanguage(editor.getModel(), 'css');
+                                            }
+                                            else if (content.slice(0, position.column).includes('<script') && 
+                                                    content.slice(position.column).includes('\</script\>')) {
+                                                monaco.editor.setModelLanguage(editor.getModel(), 'javascript');
+                                            }
+                                            else {
+                                                monaco.editor.setModelLanguage(editor.getModel(), 'html');
+                                            }
+                                        }else{
+                                            monaco.editor.setModelLanguage(editor.getModel(), lang);
+                                        }
+                                    }
+                                }else{
+                                    if(commands.length > 2){
+                                        print("too many arguments");
+                                    }else{
+                                        
+                                    }
+                                }
+                            break;
+                            
+                            case 'vim':
+                                var found = false;
+                                var verbose = false;
+                                
+                                var tempDir = directory
+                                var tempTrace = dirTrace
+                                                  
+                                var goTo = commands[1].split("/");
+                                
+                                var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                
+                                var found = find[0];
+                                tempDir = find[1];
+                                tempTrace = find[2];
+                                
+                                if(found){
+                                    if(tempDir.type === "file"){
+                                        editor.setValue(tempDir.contents);
+                                        editorDir = tempDir;
+                                        editorTrace = tempTrace;
+                                        
+                                        for(var i = tempDir.name.length-1; i >= 0; i--){
+                                            if(tempDir.name.charAt(i) === "."){
+                                                var ext = tempDir.name.slice(i+1);
+                                                if(ext === "js")
+                                                    ext = "javascript";
+                                                if(ext === "mjs")
+                                                    ext = "javascript";
+                                                if(ext === "h")
+                                                    ext = "c";
+                                                if(ext === "hpp")
+                                                    ext = "cpp";
+                                                if(ext === "html")
+                                                    lang = "default"
+                                                monaco.editor.setModelLanguage(editor.getModel(), ext);
+                                            }
+                                        }
+                                    }else{
+                                        print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                                    }
+                                }else print("<span class='error'>error:</span> "+commands[1] + " not found")
+                            break;
+                            
+                            case 'dwnld':
+                                var found = false;
+                                var verbose = false;
+                                
+                                var tempDir = directory
+                                var tempTrace = dirTrace
+                                
+                                var goTo = commands[1].split("/");
+                                
+                                var find = findPath(goTo,tempDir,tempTrace,verbose)
+                                
+                                var found = find[0];
+                                tempDir = find[1];
+                                tempTrace = find[2];
+                                
+                                if(found){
+                                    if(tempDir.type === "file"){
+                                        const blob = new Blob([tempDir.contents], { type: 'text/plain' });
+                                        const link = document.createElement('a');
+                                        link.href = URL.createObjectURL(blob);
+                                        link.download = tempDir.name;
+                                        link.click();
+                                    }else{
+                                        print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                                    }
+                                }else print("<span class='error'>error:</span> "+commands[1] + " not found")
+                            break;
+                            
+                            //#endregion
+                            
+                            default:
+                                if(commands[0])print("<span class='error'>error:</span> " + commands[0] + " not found");
+                            break;
+                        }
+                        print("\n"+prefC);
+                        
+                        commandNum++;
+                        commandNumCurrent++;
+                        currentHistory=history.length;
+                    }else if(event.keyCode===32){
+                        currentCommand+=' ';
+                        //currentCommand+='<span style="color:red">a</span>';
+                    }else if(event.key !== "Shift" && event.key !== "Control" && event.key !== "Alt"){
+                        currentCommand+=event.key;
+                        console.scrollTop = console.scrollHeight;
+                        JSconsole.scrollTop = JSconsole.scrollHeight;
+                        scrollException = true;
+                        scrollLocked = true;
+                    }
+                    if(loaded){
+                        memory.value = JSON.stringify(root);
+                    }else{
+                        if(memory.value){
+                            root = JSON.parse(memory.value);
+                        }
+                        
+                        directory = root;
+                        dirTrace = [root];
+                        loaded = true;
+                        
+                    }
+                }
+                commandDivCurrent.innerHTML = innerHTML + currentCommand;
+                
+
+                if(scrollLocked){
+                    console.scrollTop = console.scrollHeight;
+                    JSconsole.scrollTop = JSconsole.scrollHeight;
+                    scrollException = true;
+                }
+            });
+            console.addEventListener("scroll", (event) => {
+                if(!scrollException)scrollLocked = false;
+                scrollException = false;
+            });
+            
+            console.log = function(s){
+                str = s.replace(/\</g,"&lt;").replace(/\>/g,"&gt;").split('\n');
+                for(var i = 0; i < str.length; i++){
+                    if(targetConsole){
+                        JSDivCurrent.innerHTML += str[i];
+                    }else{
+                        innerHTML += str[i];
+                        commandDivCurrent.innerHTML = innerHTML + currentCommand;
+                    }
+                    currentCommand = "";
+                    if(i!=str.length-1){
+                        if(targetConsole){
+                            JSDivCurrent = document.createElement("div");
+                            JSconsole.appendChild(JSDivCurrent);
+                            JSDivCurrent.innerHTML = "";
+                        }else{
+                            commandDivCurrent = document.createElement("div");
+                            console.appendChild(commandDivCurrent);
+                            innerHTML = "";
+                        }
+                    }
+                };
+                if(scrollLocked){
+                    console.scrollTop = console.scrollHeight;
+                    JSconsole.scrollTop = JSconsole.scrollHeight;
+                    scrollException = true;
+                }
+            }
+            console.clear = function(){
+                if(targetConsole){
+                    while (JSconsole.firstChild) {
+                        JSconsole.removeChild(JSconsole.lastChild);
+                    }
+                    JSDivCurrent = document.createElement("div");
+                    JSconsole.appendChild(JSDivCurrent);
+                    JSDivCurrent.innerHTML = "";
+                }else{
+                    while (console.firstChild) {
+                        console.removeChild(console.lastChild);
+                    }
+                }
+            }
+            function print(s,location = "",append = false,output = false){
+                if(location === "/dev/null"){
+                    //do nothing
+                    //unless i have it mixed up with something else
+                }else if(location === ""){
+                    str = s.split('\n');
+                    //.replace(/ /g,"&nbsp;")
+                    for(var i = 0; i < str.length; i++){
+                        if(targetConsole){
+                            JSDivCurrent.innerHTML += str[i];
+                        }else{
+                            innerHTML += str[i];
+                            commandDivCurrent.innerHTML = innerHTML + currentCommand;
+                        }
+                        currentCommand = "";
+                        if(i!=str.length-1){
+                            if(targetConsole){
+                                JSDivCurrent = document.createElement("div");
+                                JSconsole.appendChild(JSDivCurrent);
+                                JSDivCurrent.innerHTML = "";
+                            }else{
+                                commandDivCurrent = document.createElement("div");
+                                console.appendChild(commandDivCurrent);
+                                innerHTML = "";
+                            }
+                        }
+                    };
+                    if(scrollLocked){
+                        console.scrollTop = console.scrollHeight;
+                        JSconsole.scrollTop = JSconsole.scrollHeight;
+                        scrollException = true;
+                    }
+                    
+                }else{
+                    var found = false;
+                    
+                    var verbose = false;
+                    var tempDir = directory;
+                    var tempTrace = dirTrace;
+                    
+                    var goTo = location.split("/");
+                    
+                    var find = findPath(goTo,tempDir,tempTrace,verbose);
+                    
+                    var found = find[0];
+                    tempDir = find[1];
+                    tempTrace = find[2];
+                    
+                    if(found){
+                        if(tempDir.type === "file"){
+                            if(s)tempDir.contents = append?tempDir.contents+s:s;
+                        }else{
+                            if(output) print("<span class='error'>error:</span> "+tempDir.name + " is a " + tempDir.type)
+                        }
+                    }else if(output)print(commands[1] + " not found ")
+                }
+            }
+            
+            const download = document.getElementById("download");
+            const filename = document.getElementById("filename");
+            
+            download.addEventListener('click', function() {
+                const blob = new Blob([editor.getValue()], { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename.value ? filename.value : 'untitled.txt';
+                link.click();
+            });
+        </script>
+    </body>
+</html>
