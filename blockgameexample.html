@@ -235,7 +235,7 @@
     //^^ all of this is just html stuff like the ui in the top corner and the crosshair and the canvas itself
 
     //one line 'simple' matrix 'library'
-    class mat4 {constructor(){this.elements = Array(4).fill(0).map(() => Array(4).fill(0));}static identity() {const m = new mat4();for (let i = 0; i < 4; i++) {m.elements[i][i] = 1;}return m;}set(elements){this.elements = elements;}static translation(tx, ty, tz) {const m = mat4.identity();m.elements[0][3] = tx;m.elements[1][3] = ty;m.elements[2][3] = tz;return m;}static scaling(sx, sy, sz) {const m = mat4.identity();m.elements[0][0] = sx;m.elements[1][1] = sy;m.elements[2][2] = sz;return m;}mult(other){if(!(other instanceof mat4)){console.error("Invalid argument: must be a mat4 instance.");return null;}const result = new mat4();for(let i = 0; i < 4; i++){for(let j = 0; j < 4; j++){result.elements[i][j]=0;for(let k = 0; k < 4; k++){result.elements[i][j]+=this.elements[i][k]*other.elements[k][j];}}}return result;}toArray(){return this.elements.flat();}toString(){return this.elements.map(row => row.join(", ")).join("\n");}}function createPerspectiveMatrix(fov,aspect,near,far){const f = 1.0 / Math.tan(fov / 2);const rangeInv = 1/(near-far);return[[f/aspect,0,0,0],[0,f,0,0],[0,0,(far+near)*rangeInv,(2*far*near)*rangeInv],[0,0,-1,0]];}function cross(a, b){if(a.length !== 3 || b.length !== 3){throw new Error("Both inputs must be 3-dimensional vectors.");}return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}function normalize(vec){const length=Math.sqrt(vec[0]**2+vec[1]**2+vec[2]**2);return vec.map(v=>v/length);}function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+    class mat4 {constructor(){this.elements = Array(4).fill(0).map(() => Array(4).fill(0));}static identity() {const m = new mat4();for (let i = 0; i < 4; i++) {m.elements[i][i] = 1;}return m;}set(elements){this.elements = elements;}static translation(tx, ty, tz) {const m = mat4.identity();m.elements[0][3] = tx;m.elements[1][3] = ty;m.elements[2][3] = tz;return m;}static scaling(sx, sy, sz) {const m = mat4.identity();m.elements[0][0] = sx;m.elements[1][1] = sy;m.elements[2][2] = sz;return m;}mult(other){if(!(other instanceof mat4)){console.error("Invalid argument: must be a mat4 instance.");return null;}const result = new mat4();for(let i = 0; i < 4; i++){for(let j = 0; j < 4; j++){result.elements[i][j]=0;for(let k = 0; k < 4; k++){result.elements[i][j]+=this.elements[i][k]*other.elements[k][j];}}}return result;}toArray(){return this.elements.flat();}toString(){return this.elements.map(row => row.join(", ")).join("\\n");}}function createPerspectiveMatrix(fov,aspect,near,far){const f = 1.0 / Math.tan(fov / 2);const rangeInv = 1/(near-far);return[[f/aspect,0,0,0],[0,f,0,0],[0,0,(far+near)*rangeInv,(2*far*near)*rangeInv],[0,0,-1,0]];}function cross(a, b){if(a.length !== 3 || b.length !== 3){throw new Error("Both inputs must be 3-dimensional vectors.");}return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}function normalize(vec){const length=Math.sqrt(vec[0]**2+vec[1]**2+vec[2]**2);return vec.map(v=>v/length);}function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
 		
 
         //get canvas and do webgl stuff
@@ -268,13 +268,13 @@
         
         //override console.log because i can
         console.log = function(...args){
-            log.innerHTML += args.join(' ').replace(/\n/g, '<br>');
+            log.innerHTML += args.join(' ').replace(/\\n/g, '<br>');
             log.scrollTop = log.scrollHeight;
         }
 
         //error handling
         window.onerror = function(error, url, line) {
-            console.log("\nError at line "+line+": " +error);
+            console.log("\\nError at line "+line+": " +error);
         };
         
         //bind buffers
@@ -714,8 +714,8 @@
             }
         }
         
-        console.log("\n<span style = 'color:lime'>done!</span>   <span style = 'color:gray'>... added "+ 8*8 +" chunks of size "+width+","+height+","+depth+".</span>");
-        console.log("\nplacing grass, stone, and bedrock... ");
+        console.log("\\n<span style = 'color:lime'>done!</span>   <span style = 'color:gray'>... added "+ 8*8 +" chunks of size "+width+","+height+","+depth+".</span>");
+        console.log("\\nplacing grass, stone, and bedrock... ");
         var grassPlaced = 0;
         var stonePlaced = 0;
         var bedrockPlaced = 0;
@@ -745,7 +745,7 @@
                 }
             }
         }
-        console.log("\n<span style = 'color:lime'>done!</span>   <span style = 'color:gray'>... placed "+grassPlaced+" grass, "+stonePlaced+" stone, and "+bedrockPlaced+" bedrock.</span>");
+        console.log("\\n<span style = 'color:lime'>done!</span>   <span style = 'color:gray'>... placed "+grassPlaced+" grass, "+stonePlaced+" stone, and "+bedrockPlaced+" bedrock.</span>");
 
 
         //                         <--TERRAIN GENERATION ENDS HERE
@@ -1279,7 +1279,7 @@
             const fps = 1 / deltaTime;
             dt = deltaTime*60*gameSpeed;
 
-            debug.innerText = toGrid(pos)[0]%8+" "+toGrid(pos)[1]+" "+toGrid(pos)[2]%8+" "+Math.floor(toGrid(pos)[0]/8)+" "+Math.floor(toGrid(pos)[2]/8)+"   :   "+toGrid(pos)+"\n"+lookAtBlock+"\nfps: "+fps.toFixed(1)+"\nDeltatime: "+dt+"\nblocks: "+amountOfBlocks+"\nVertices: "+tempVerts.length+"\nTriangles: "+tempVerts.length/3;
+            debug.innerText = toGrid(pos)[0]%8+" "+toGrid(pos)[1]+" "+toGrid(pos)[2]%8+" "+Math.floor(toGrid(pos)[0]/8)+" "+Math.floor(toGrid(pos)[2]/8)+"   :   "+toGrid(pos)+"\\n"+lookAtBlock+"\\nfps: "+fps.toFixed(1)+"\\nDeltatime: "+dt+"\\nblocks: "+amountOfBlocks+"\\nVertices: "+tempVerts.length+"\\nTriangles: "+tempVerts.length/3;
         }
         requestAnimationFrame(render);
         
